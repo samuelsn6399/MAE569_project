@@ -1,9 +1,18 @@
 function [r,v,x,t,dtdx,t_t] = universal_ToF_x(r0,v0,a,delta_t,mu,x_guess,errtol,maxiter,new_plot,show_iter)
 %universal_ToF given a radius, velocity, and time, find the value of x and
 %r
-if nargin < 5 || ~x_guess; x_guess = sqrt(mu)*delta_t/a; end
-if nargin < 7; errtol = 0.0001; end
-if nargin < 8; maxiter = 100; end
+if nargin <= 5 
+    x_guess = sqrt(mu)*delta_t/a; 
+end
+
+if nargin < 7 
+    errtol = 0.0001; 
+end
+if nargin < 8 
+    maxiter = 100;
+    new_plot = false;
+    show_iter = false;
+end
 x = x_guess;
 t = a/sqrt(mu)*(x-sqrt(a)*sin(x/sqrt(a))) + dot(r0,v0)/mu*a*(1-cos(x/sqrt(a))) + norm(r0)*sqrt(a/mu)*sin(x/sqrt(a));
 iter = 1;
@@ -46,11 +55,9 @@ if new_plot
     hold off
 end
 if show_iter
+    fprintf(' i          x_n        Δt-tn        dt/dx        x_n+1\n')
+    fprintf('__ ____________ ____________ ____________ ____________\n')
     for iter = 1:size(x,2)-1
-        if iter == 1
-            fprintf(' i          x_n        Δt-tn        dt/dx        x_n+1\n')
-            fprintf('__ ____________ ____________ ____________ ____________\n')
-        end
         fprintf('%2d %12.5g %12.5g %12.5g %12.5g\n',iter,x(iter),t_t(iter),dtdx(iter),x(iter+1))
     end
 end
