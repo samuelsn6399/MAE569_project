@@ -5,7 +5,7 @@ load("J200.mat")
 
 % TODO probe is NOT allowed into the center of the sun!
 
-% TODO convert sams plotting routine to functions :)
+% TODO convert sams plotting routine to functions
 
 % unknowns:
 % time: launch, DSM, flyby, arrival
