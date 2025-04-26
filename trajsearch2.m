@@ -55,7 +55,7 @@ ijptr = 5;
 reartho = r_earth() + 500;
 rjptro = r_jptr() + 10000;
 
-sweepn = 20;
+sweepn = 3;
 % tlaunch = 0; % TODO this should a function of indexlaunch
 % find an idealized hohmann transfer trajectory to use as a baseline
 ahohmannjptr = (J2000(iearth).a+J2000(ijptr).a)/2;

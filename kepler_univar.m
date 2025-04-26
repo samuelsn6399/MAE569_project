@@ -1,13 +1,16 @@
-function [r1, v1] = kepler_univar(r0, v0, deltat, mu, verbose)
+function [r1, v1] = kepler_univar(r0, v0, deltat, mu, verbose, soft)
     if nargin < 5
         verbose = false;
+    end
+    if nargin < 6
+        soft = 1;
     end
     h0 = cross(r0, v0);
     ecc = 1./mu .* ((mag(v0).^2-mu./mag(r0)).*r0-sum(r0.*v0).*v0);
     semimajor = mag(h0).^2./mu./(1-mag(ecc).^2);
     r0dotv0 = sum(r0.*v0);
     magr0 = mag(r0);
-    tol = 1e-12;
+    tol = 1e-8;
     ncnt = 0;
     maxn = 20;
     % x_n = 0.*sqrt(mu).*deltat./semimajor.*ones(1, len); % guess idk
@@ -51,7 +54,7 @@ function [r1, v1] = kepler_univar(r0, v0, deltat, mu, verbose)
         if verbose
             fprintf("%d\t%4.4f\t  %4.4f  \t%4.4f\n", ncnt, x_n, deltat-t_n, dtdx_n);
         end
-        x_n = x_n + (deltat - t_n)./dtdx_n;
+        x_n = x_n + soft*(deltat - t_n)./dtdx_n;
     end
     f = 1 - x_n.^2./magr0.*C(z_n);
     g = t_n - x_n.^3./sqrt(mu).*S(z_n);
