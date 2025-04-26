@@ -1,0 +1,302 @@
+%% Return Trip: Jupiter2Earth
+clear; clc;
+%%%%%%%%%%%%%%%%%%%% Date of Jupiter Departure%%%%%%%%%%%%%%%%%%%%%%%%
+% Get initial Jupiter arrival date to know minimum departure date
+% iterate on departure and arrival for optimization
+jupiter_aDate = datetime(2049,06,25,11,58,00);
+jupiter_dDate1 = datetime(2050,06,25,11,58,00);
+earth_aDate2 = datetime(2052,04,12,11,58,00);
+load("J2000.mat")
+T_j = 1:5000;
+T_e = 1:365;
+
+jdate_index = find(J2000(5).date==jupiter_dDate1);
+r_jd1 = J2000(5).r(jdate_index,:); % return the entire r vector
+v_jd1 = J2000(5).v(jdate_index,:); % return the entire v vector
+T_jd1 = J2000(5).T(jdate_index); % return the time in days since J2000
+edate_index = find(J2000(3).date==earth_aDate2);
+r_ea2 = J2000(3).r(edate_index,:); % return the entire r vector
+v_ea2 = J2000(3).v(edate_index,:); % return the entire v vector
+T_ea2 = J2000(3).T(edate_index); % return the time in days since J2000
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Helio Orbit From Jupiter To Earth (Front Side Flyby Stage)
+r1 = r_jd1;
+r2 = r_ea2;
+ToF12_day = T_ea2-T_jd1;
+ToF12 = getTU(ToF12_day,'d');
+[v1, v2] = GaussToF(r1,r2,ToF12);
+v2_mag = sqrt(dot(v2,v2)); % [AU/TU]
+[a_s1, e_s1, i_s1, O_s1, o_s1, theta_s1] = orbitalElements(r1,v1,1);
+theta_s2 = thetaFromrv(r2,v2);
+
+%% Earth Frontside Fly By
+% satelite must be faster than earth for frontside flyby
+speedTrap = sqrt(dot(v2,v2))-sqrt(dot(v_ea2,v_ea2));
+% if speedTrap>0
+%     disp('ARRESTED BY GALACTIC POLICE DEPARTMENT (GPD) FOR SPEEDING')
+% end
+
+AUTU2kms = 29.7891; % [(km/s)/(AU/TU)]
+TU2day = 1/0.0172;
+
+v_infea1AU = v2-v_ea2; % [AU/TU]
+v_infea1 = v_infea1AU*AUTU2kms; % [km/s] convert to km/s
+v_infea1_mag = sqrt(dot(v_infea1,v_infea1)); % [km/s]
+mu_e = 3.986e5; % [km^3/s^2]
+E_hyper1 = v_infea1_mag^2/2;
+a_hyper1 = -mu_e/(2*E_hyper1);
+% recomend between 1000km and GEO altitude (No satelites to run into)
+rp_hyper1 = 100+6378; % [km]
+e_hyper1 = 1-rp_hyper1/a_hyper1;
+delta = 2*asin(1/e_hyper1); % rad
+infa2infd = [cos(delta) -sin(delta) 0;
+             sin(delta)  cos(delta) 0;
+             0           0          1];
+v_infed1 = infa2infd*v_infea1'; % [km/s]
+v_infed1_mag = sqrt(dot(v_infed1,v_infed1)); % [km/s]
+v_infed1AU = v_infed1'*(1/AUTU2kms); % [AU/TU]
+v3 = v_infed1AU+v_ea2; % [AU/TU]
+v3_mag = sqrt(dot(v3,v3)); % [AU/TU]
+
+fprintf('                    | Frame |     i     |     j    |     k     |    mag     |  Unit |\n')
+fprintf('------------------------------------------------------------------------------------\n')
+fprintf('Pre-flyby Velocity  | Helio |  %8f | %8f | %8f | %8f   | AU/TU |\n',v2,v2_mag)
+fprintf('Post-flyby Velocity | Helio |  %8f | %8f | %8f | %8f   | AU/TU |\n',v3,v3_mag)
+fprintf('Arrival v_inf       | Geo   |  %8f | %8f | %8f | %8f  | km/s  |\n',v_infea1,v_infea1_mag)
+fprintf('Departure v_inf     | Geo   |  %8f | %8f| %8f | %8f  | km/s  |\n',v_infed1,v_infed1_mag)
+fprintf('------------------------------------------------------------------------------------\n')
+fprintf('Hyperbolic Flyby Parameters |   Value  | Unit |\n')
+fprintf('----------------------------------------------\n')
+fprintf('                     delta  | %8f | rad  |\n',delta)
+fprintf('                     delta  | %8f| deg  |\n',delta*180/pi)
+fprintf('                         e  | %8f |      |\n',e_hyper1)
+fprintf('----------------------------------------------\n')
+
+%% Deep Space Manuevers W/ Iteration on Periapsis to Earth Time of Flight
+% post fly-by satelite helio-centric orbit
+r3 = r2; % the arrival and departure at earth occur at the same heliocentric 
+%           position
+[a_s3, e_s3, i_s3, O_s3, o_s3, theta_s3] = orbitalElements(r3,v3,1);
+% attempt deltaV deep space manuever at apogee of helio orbit for efficient
+% deltaV
+
+% 4 is apogee of deep space manuever
+% 5 is earth arrival 2
+
+ToF45_day = 380; % days from apogee of post-flyby orbit to earth arrival
+ToF45 = getTU(ToF45_day,'d'); % [TU]
+% find number of days until post-flyby reaches apogee
+
+E_s3 = acos((e_s3+cosd(theta_s3))/(1+e_s3*cosd(theta_s3))); % eccentric anomaly post fly-by
+E_s4 = pi; % [rad] eccentric anomaly at apogee
+theta_s4_desired = 180; % [deg] this is not the actual theta_s4; because this does not result in a whole day ToF
+% consider whether periapsis will need to past
+% periapsis is at 0 or 360 degrees and apogee is at 180 degrees
+% so if 180 degrees has already past the space craft will have to pass by
+% periapsis (0 degress) before arriving at 180 degrees
+if theta_s3>180
+    k=1;
+    E_s3 = 2*pi-E_s3;
+elseif theta_s3<=180
+    k=0;
+else
+    disp("your code is broken")
+end
+
+% round to nearest whole day due to the availsble data resolution; then
+% find more accurate theta_s4 using whole day as ToF33a
+ToF34 = sqrt(a_s3^3)*(2*pi*k+(E_s4-e_s3*sin(E_s4))-(E_s3-e_s3*sin(E_s3))); % TU from fly-by to apogee of post-flyby
+ToF34_day = ToF34*TU2day; % days from fly-by to apogee of post-flyby
+% 3 is the earth departure
+% 4 is the satelite apogee
+% 5 is the earth arrival 2
+ToF35 = ToF34+ToF45;
+ToF35_day = floor(ToF34_day+ToF45_day); % nearest whole day
+
+earth_aDate5 = daysadd(earth_aDate2,ToF35_day); % date of second earth arrival post-flyby
+edate_index = find(J2000(3).date==earth_aDate5);
+r_ea5 = J2000(3).r(edate_index,:); % return the entire r vector
+v_ea5 = J2000(3).v(edate_index,:); % return the entire v vector
+T_ea5 = J2000(3).T(edate_index); % return the time in days since J2000
+T_ed3 = T_ea2;
+
+[r4,v4_deepSpaceTraj,theta_s4] = keplarToF(a_s3,e_s3,i_s3,O_s3,o_s3,r3,v3,theta_s3,getTU(floor(ToF34_day),'d'));
+% [r4,v4_deepspaceTraj] = rvFromOrbitalEle(a_s3, e_s3, i_s3, O_s3, o_s3, theta_s4)
+r4=r4'; 
+r5 = r_ea5;
+
+[v4,v5] = GaussToF(r4,r5,ToF45); % this v4 is the required v4 to acheive desired orbit
+% need v4_deepspaceTraj to find deltaV
+[a_s4, e_s4, i_s4, O_s4, o_s4, theta_s4prime] = orbitalElements(r4,v4,1);
+
+T_deepspaceTraj = sqrt(4*pi^2*a_s3^3); % [TU] period of post-flyby helio orbit
+T_deepspaceTraj_day = 1:1:T_deepspaceTraj*TU2day;
+
+T_deepspaceMan = sqrt(4*pi^2*a_s4^3); % [TU] period of post-flyby helio orbit
+T_deepspaceMan_day = 1:1:T_deepspaceMan*TU2day;
+
+T_e2e = T_ed3:1:T_ea5;
+T_e24 = T_ed3:1:T_ed3+floor(ToF34_day);
+
+%% Calc Delta V1
+r_cj = 10000+69911; % [km]
+mu_j = 126.687e6; % [km^3/s^2]
+v_cj = sqrt(mu_j/r_cj); % [km/s]
+v_infj = (v_jd1-v1)*AUTU2kms; % [km/s]
+v_infj_mag = sqrt(dot(v_infj,v_infj)); % [km/s]
+v_hyperj = sqrt((v_infj_mag^2+2*mu_j/r_cj)); % [km/s]
+deltaV1 = v_hyperj-v_cj % [km/s]
+
+%% Calc Delta V2
+deltaV2_AUTUvector = v4_deepSpaceTraj'-v4; % [AU/TU]
+deltaV2_AUTUmag = sqrt(dot(deltaV2_AUTUvector,deltaV2_AUTUvector)); % [AU/TU]
+deltaV2 = deltaV2_AUTUmag*AUTU2kms % [km/s]
+
+%% Calc Delta V3
+r_ce = 2000+6378; % [km]
+v_ce = sqrt(mu_e/r_ce); % [km/s]
+v_infea2 = (v_ea5-v5)*AUTU2kms; % [km/s]
+v_infea2_mag = sqrt(dot(v_infea2,v_infea2)); % [km/s]
+v_hyperea2 = sqrt((v_infea2_mag^2+2*mu_e/r_ce)); % [km/s]
+deltaV3 = v_hyperea2-v_ce % [km/s]
+
+%% Calc Delta V3 w/ No Flyby (Direct)
+v_infea2_prime = (v_ea2-v2)*AUTU2kms; % [km/s]
+v_infea2_primemag = sqrt(dot(v_infea2_prime,v_infea2_prime)); % [km/s]
+v_hyperea2_prime = sqrt((v_infea2_primemag^2+2*mu_e/r_ce)); % [km/s]
+deltaV3_prime = v_hyperea2_prime-v_ce; % [km/s]
+
+%% Plot Frontside flyby (DEBUG)
+% plot earth orbit and jupiter orbit and velcity vector
+figure(1);clf(1); hold on; grid on;
+T_j2e = T_jd1:1:T_ea2; % vector of days from jupiter depart to earth fly-by arrival
+plot3(J2000(3).r(T_e,1),J2000(3).r(T_e,2),J2000(3).r(T_e,3),'Color',[0 0 1],'DisplayName','Earth Orbit')
+plot3(J2000(5).r(T_j,1),J2000(5).r(T_j,2),J2000(5).r(T_j,3),'Color',[1 0 0],'DisplayName','Jupiter Orbit')
+plot3(J2000(3).r(T_ea2,1),J2000(3).r(T_ea2,2),J2000(3).r(T_ea2,3),'Marker','.','MarkerSize',20,'Color',[1 0 0],'DisplayName','Frontside Flyby')
+plot3(J2000(5).r(T_jd1,1),J2000(5).r(T_jd1,2),J2000(5).r(T_jd1,3),'Marker','*','MarkerSize',10,'Color',[1 0 0],'DisplayName','deltaV1')
+plot3(0,0,0,'Marker','.','MarkerSize',40,'Color',[1 1 0],'DisplayName','Sun')
+
+% plot satelite and velocity vector
+% build r vector
+r_satTraj12 = zeros(length(T_j2e),3);
+for idx = 1:length(T_j2e)
+    ToFidx = getTU(idx,'d');
+    r_satTraj12(idx,:) = keplarToF(a_s1, e_s1, i_s1, O_s1, o_s1,r1,v1,theta_s1,ToFidx);
+end
+
+T_earthFlybyOrbit = sqrt(4*pi^2*a_s1^3); % [TU] period of post-flyby helio orbit
+T_earthFlybyOrbit_day = 1:1:T_earthFlybyOrbit*TU2day;
+r_satTraj12_complete = zeros(length(T_earthFlybyOrbit_day),3);
+for idx = 1:length(T_earthFlybyOrbit_day)
+    ToFidx = getTU(idx,'d');
+    r_satTraj12_complete(idx,:) = keplarToF(a_s1, e_s1, i_s1, O_s1, o_s1,r1,v1,theta_s1,ToFidx);
+end
+
+plot3(r_satTraj12(:,1),r_satTraj12(:,2),r_satTraj12(:,3),'Color',[0 1 0],'LineStyle','-','DisplayName','Sat Trajectory Actual')
+plot3(r_satTraj12_complete(length(r_satTraj12(:,1)):end,1), ...
+    r_satTraj12_complete(length(r_satTraj12(:,2)):end,2), ...
+    r_satTraj12_complete(length(r_satTraj12(:,3)):end,3),'Color',[0 1 0],'LineStyle','--','DisplayName','Sat Trajectory Nominal')
+
+% velocity vectors
+% quiver3(r2(1),r2(2),r2(3),v2(1),v2(2),v2(3),'Color',[0 1 0],'LineWidth',3); % sat vel vector at arrival
+% quiver3(r1(1),r1(2),r1(3),v1(1),v1(2),v1(3),'Color',[0 1 0],'LineWidth',3); % sat vel vector at arrival
+% quiver3(r2(1),r2(2),r2(3),v_ea2(1),v_ea2(2),v_ea2(3),'Color',[0 0 1],'LineWidth',3); % earth vel vector
+% quiver3(r1(1),r1(2),r1(3),v_jd1(1),v_jd1(2),v_jd1(3),'Color',[1 0 0],'LineWidth',3); % jupiter vel vector
+
+% plot3(J2000(3).r(T_e2e,1),J2000(3).r(T_e2e,2),J2000(3).r(T_e2e,3),'Color',[0 0 1])
+% plot3(J2000(5).r(T_e2e,1),J2000(5).r(T_e2e,2),J2000(5).r(T_e2e,3),'Color',[1 0 0])
+% plot3(J2000(5).r(T_ea5,1),J2000(5).r(T_ea5,2),J2000(5).r(T_ea5,3),'Marker','*','MarkerSize',10,'Color',[1 0 0])
+plot3(J2000(3).r(T_ea5,1),J2000(3).r(T_ea5,2),J2000(3).r(T_ea5,3),'Marker','*','MarkerSize',10,'Color',[1 0 0],'DisplayName','deltaV3')
+
+r_satTraj34 = zeros(length(T_e24),3);
+for idx = 1:length(T_e24)
+    ToFidx = getTU(idx,'d');
+    r_satTraj34(idx,:) = keplarToF(a_s3, e_s3, i_s3, O_s3, o_s3,r3,v3,theta_s3,ToFidx);
+end
+
+r_satTraj34_complete = zeros(length(T_deepspaceTraj_day),3);
+for idx = 1:length(T_deepspaceTraj_day)
+    ToFidx = getTU(idx,'d');
+    r_satTraj34_complete(idx,:) = keplarToF(a_s3, e_s3, i_s3, O_s3, o_s3,r3,v3,theta_s3,ToFidx);
+end
+
+plot3(r_satTraj34(:,1),r_satTraj34(:,2),r_satTraj34(:,3),'Color',[0 1 0],'LineStyle','-','DisplayName','Sat Trajecotry Actual')
+plot3(r_satTraj34(end,1),r_satTraj34(end,2),r_satTraj34(end,3),'Marker','*','MarkerSize',10,'Color',[1 0 0],'DisplayName','deltaV2')
+% plot3(r4(1),r4(2),r4(3),'Marker','*','MarkerSize',10,'Color',[1 0 0])
+
+plot3(r_satTraj34_complete(length(r_satTraj34(:,1)):end,1), ...
+    r_satTraj34_complete(length(r_satTraj34(:,2)):end,2), ...
+    r_satTraj34_complete(length(r_satTraj34(:,3)):end,3),'Color',[0 1 0],'LineStyle','--','DisplayName','Sat Trajectory Nominal')
+
+r_satTraj45 = zeros(ToF45_day,3);
+for idx = 1:ToF45_day
+    ToFidx = getTU(idx,'d');
+    r_satTraj45(idx,:) = keplarToF(a_s4, e_s4, i_s4, O_s4, o_s4,r4,v4,theta_s4,ToFidx);
+end
+
+r_satTraj45_complete = zeros(length(T_deepspaceMan_day),3);
+for idx = 1:length(T_deepspaceMan_day)
+    ToFidx = getTU(idx,'d');
+    r_satTraj45_complete(idx,:) = keplarToF(a_s4, e_s4, i_s4, O_s4, o_s4,r4,v4,theta_s4,ToFidx);
+end
+
+plot3(r_satTraj45(:,1),r_satTraj45(:,2),r_satTraj45(:,3),'Color',[0 1 0],'LineStyle','-','DisplayName','Sat Trajectory Actual')
+plot3(r_satTraj45_complete(length(r_satTraj45(:,1)):end,1), ...
+    r_satTraj45_complete(length(r_satTraj45(:,2)):end,2), ...
+    r_satTraj45_complete(length(r_satTraj45(:,3)):end,3),'Color',[0 1 0],'LineStyle','--','DisplayName','Sat Trajectory Nominal')
+
+xlabel 'X [AU]'
+ylabel 'Y [AU]'
+zlabel 'Z [AU]'
+title 'Jupiter to Earth'
+% legend('Earth Orbit','Jupiter Orbit','Jupiter Depart','Earth Arrival','Sun', ...
+%        'Satelite Orbit: Earth Flyby')
+view(0,90)
+axis([-8 8 -8 8 -1 1])
+legend
+hold off
+
+
+%% Iterate: deltaV2 and deltaV1 Optimization
+ToF45_day_min = 50; % [days] avoid imaginary solutions
+ToF45_day_max = 1000; % [days] avoid imaginary solutions
+ToF45_day_idx = ToF45_day_min:ToF45_day_max;
+% initialize variables for storage
+deltaV2_iter = zeros(length(ToF45_day_idx),1);
+deltaV3_iter = zeros(length(ToF45_day_idx),1);
+for idx = 1:length(ToF45_day_idx)
+
+    ToF45_day = ToF45_day_idx(idx); % days from apogee of post-flyby orbit to earth arrival
+    ToF45 = getTU(ToF45_day,'d'); % [TU]
+
+    ToF35 = ToF34+ToF45;
+    ToF35_day = floor(ToF34_day+ToF45_day); % nearest whole day
+
+    earth_aDate5 = daysadd(earth_aDate2,ToF35_day); % date of second earth arrival post-flyby
+    edate_index = find(J2000(3).date==earth_aDate5);
+    r_ea5 = J2000(3).r(edate_index,:); % return the entire r vector
+    v_ea5 = J2000(3).v(edate_index,:); % return the entire v vector
+    T_ea5 = J2000(3).T(edate_index); % return the time in days since J2000
+
+    [v4,v5] = GaussToF(r4,r5,ToF45); % this v4 is the required v4 to acheive desired orbit
+    % need v4_deepspaceTraj to find deltaV
+    [a_s4, e_s4, i_s4, O_s4, o_s4, theta_s4prime] = orbitalElements(r4,v4,1);
+
+    deltaV2_AUTUvector = v4_deepSpaceTraj'-v4; % [AU/TU]
+    deltaV2_AUTUmag = sqrt(dot(deltaV2_AUTUvector,deltaV2_AUTUvector)); % [AU/TU]
+    deltaV2_iter(idx) = deltaV2_AUTUmag*AUTU2kms; % [km/s]
+
+    r_ce = 2000+6378; % [km]
+    v_ce = sqrt(mu_e/r_ce); % [km/s]
+    v_infea2 = (v_ea5-v5)*AUTU2kms; % [km/s]
+    v_infea2_mag = sqrt(dot(v_infea2,v_infea2)); % [km/s]
+    v_hyperea2 = sqrt((v_infea2_mag^2+2*mu_e/r_ce)); % [km/s]
+    deltaV3_iter(idx) = v_hyperea2-v_ce; % [km/s]
+
+end
+
+%% Minimize dV2
+
+
+%% Minimize dv3
