@@ -285,9 +285,9 @@ for idx = 1:length(T_deepspaceMan_dayidx)
     ToFidx = getTU(idx,'d');
     r_satTraj45_complete(idx,:) = keplarToF(a_s4, e_s4, i_s4, O_s4, o_s4,r4,v4,theta_s4,ToFidx);
 end
-plot3(r_satTraj12(:,1),r_satTraj12(:,2),r_satTraj12(:,3),'Color',[0 1 0],'LineStyle','--','LineWidth',1,'DisplayName','Sat Trajectory 1')
-plot3(r_satTraj34(:,1),r_satTraj34(:,2),r_satTraj34(:,3),'Color',[0 1 0],'LineStyle',':','LineWidth',2,'DisplayName','Sat Trajectory 2')
-plot3(r_satTraj45(:,1),r_satTraj45(:,2),r_satTraj45(:,3),'Color',[0 1 0],'LineStyle','-.','LineWidth',1,'DisplayName','Sat Trajectory 3')
+plot3(r_satTraj12(:,1),r_satTraj12(:,2),r_satTraj12(:,3),'Color',[0.1 1 0],'LineStyle','-','DisplayName','Sat Trajectory 1')
+plot3(r_satTraj34(:,1),r_satTraj34(:,2),r_satTraj34(:,3),'Color',[0.5 1 0],'LineStyle','-','DisplayName','Sat Trajectory 2')
+plot3(r_satTraj45(:,1),r_satTraj45(:,2),r_satTraj45(:,3),'Color',[1 1 0],'LineStyle','-','DisplayName','Sat Trajectory 3')
 % plot3(r_satTraj45_complete(length(r_satTraj45(:,1)):end,1), ...
 %     r_satTraj45_complete(length(r_satTraj45(:,2)):end,2), ...
 %     r_satTraj45_complete(length(r_satTraj45(:,3)):end,3),'Color',[0 1 0],'LineStyle','--','DisplayName','Sat Trajectory Nominal')
