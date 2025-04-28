@@ -1,10 +1,12 @@
-function [v1,v2] = GaussToF(r1,r2,ToF)
+function [v1,v2] = GaussToF(r1,r2,ToF, short)
 %UNTITLED5 Summary of this function goes here
 %   Detailed explanation goes here
-
+if nargin < 4
+    short = true;
+end
 mu = 1;
 iter_max = 100;
-tol = 0.001; % MPRAE tolerance
+tol = 1e-6; % MPRAE tolerance
 r1_mag = sqrt(dot(r1,r1));
 r2_mag = sqrt(dot(r2,r2));
 
@@ -31,6 +33,9 @@ g_dot = @(y,r2) 1-y/r2;
 
 %% Shortway
 dtheta_s = acos(dot(r1,r2)/(r1_mag*r2_mag));
+if ~short
+    dtheta_s = 2*pi - dtheta_s;
+end
 A_s = (sqrt(r1_mag*r2_mag)*sin(dtheta_s))/(sqrt(1-cos(dtheta_s)));
 
 %% preallocate variables
@@ -96,12 +101,6 @@ z_1 = z_n(1:find(x_n(:,1),1,'last'));
 x_1 = x_n(1:length(z_1));
 y_1 = y_n(1:length(z_1));
 S_1 = S_n(1:length(z_1));
-C_1 = C_n(1:length(z_1));
-dSdz_1 = dSdz_n(1:length(z_1));
-dCdz_1 = dCdz_n(1:length(z_1));
-dtdz_1 = dtdz_n(1:length(z_1));
-t_1 = t_n(1:length(z_1));
-ea_1 = ea(1:length(z_1));
 
 % solve f,g
 f_1 = f(y_1(end),r1_mag);
