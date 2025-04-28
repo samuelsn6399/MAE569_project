@@ -79,17 +79,17 @@ v3_mag = sqrt(dot(v3,v3)); % [AU/TU]
 
 fprintf('                    | Frame |     i     |     j    |     k     |    mag     |  Unit |\n')
 fprintf('------------------------------------------------------------------------------------\n')
-fprintf('Earth     Velocity  | Helio |  %8f | %8f | %8f | %8f   | AU/TU |\n',v_ea2,sqrt(dot(v_ea2,v_ea2)))
-fprintf('Pre-flyby Velocity  | Helio |  %8f | %8f | %8f | %8f   | AU/TU |\n',v2,v2_mag)
-fprintf('Post-flyby Velocity | Helio |  %8f | %8f | %8f | %8f   | AU/TU |\n',v3,v3_mag)
+fprintf('Earth     Velocity  | Helio |  %8f | %8f | %8f | %8f    | AU/TU |\n',v_ea2,sqrt(dot(v_ea2,v_ea2)))
+fprintf('Pre-flyby Velocity  | Helio |  %8f | %8f | %8f | %8f  | AU/TU |\n',v2,v2_mag)
+fprintf('Post-flyby Velocity | Helio |  %8f | %8f | %8f | %8f  | AU/TU |\n',v3,v3_mag)
 fprintf('Arrival v_inf       | Geo   |  %8f | %8f | %8f | %8f  | km/s  |\n',v_infea1_ijk,v_infea1_ijk_mag)
-fprintf('Departure v_inf     | Geo   |  %8f | %8f| %8f  | %8f  | km/s  |\n',v_infed1_ijk,v_infed1_mag)
+fprintf('Departure v_inf     | Geo   |  %8f | %8f|  %8f   | %8f| km/s  |\n',v_infed1_ijk,v_infed1_mag)
 fprintf('------------------------------------------------------------------------------------\n')
 fprintf('Hyperbolic Flyby Parameters |   Value  | Unit |\n')
 fprintf('----------------------------------------------\n')
-fprintf('                     delta  | %8f | rad  |\n',delta)
-fprintf('                     delta  | %8f| deg  |\n',delta*180/pi)
-fprintf('                         e  | %8f |      |\n',e_hyper1)
+fprintf('                     delta  | %8f | rad |\n',delta)
+fprintf('                     delta  | %8f| deg |\n',delta*180/pi)
+fprintf('                         e  | %8f  |      \n',e_hyper1)
 fprintf('----------------------------------------------\n')
 
 %% Deep Space Manuevers W/ Iteration on Periapsis to Earth Time of Flight
@@ -143,6 +143,9 @@ ToF45_day_idx = ToF45_day_min:ToF45_day_max;
 % initialize variables for storage
 deltaV2_iter = zeros(length(ToF45_day_idx),1);
 deltaV3_iter = zeros(length(ToF45_day_idx),1);
+v_infea2 = zeros(length(ToF45_day_idx),3);
+v_infea2_mag = zeros(length(ToF45_day_idx),1);
+v_hyperea2 = zeros(length(ToF45_day_idx),1);
 for idx = 1:length(ToF45_day_idx)
 
     ToF45_day = ToF45_day_idx(idx); % days from apogee of post-flyby orbit to earth arrival
@@ -169,17 +172,27 @@ for idx = 1:length(ToF45_day_idx)
 
     r_ce = 2000+6378; % [km]
     v_ce = sqrt(mu_e/r_ce); % [km/s]
-    v_infea2 = (v_ea5-v5)*AUTU2kms; % [km/s]
-    v_infea2_mag = sqrt(dot(v_infea2,v_infea2)); % [km/s]
-    v_hyperea2 = sqrt((v_infea2_mag^2+2*mu_e/r_ce)); % [km/s]
-    deltaV3_iter(idx) = v_hyperea2-v_ce; % [km/s]
+    v_infea2(idx,:) = (v_ea5-v5)*AUTU2kms; % [km/s]
+    v_infea2_mag(idx) = sqrt(dot(v_infea2(idx,:),v_infea2(idx,:))); % [km/s]
+    v_hyperea2(idx) = sqrt((v_infea2_mag(idx)^2+2*mu_e/r_ce)); % [km/s]
+    deltaV3_iter(idx) = v_hyperea2(idx)-v_ce; % [km/s]
 
 end
+figure (10);clf(10);
+plot(ToF45_day_idx,deltaV3_iter,'LineWidth',5)
+xlabel('Time of Flight [days]','Interpreter','latex')
+ylabel('$\Delta V$ [km/s]','Interpreter','latex')
+title('Optimize: Time of Flight From Earth Targeting to Earth Arrival','Interpreter','latex')
+fontsize(18,'point')
+grid on
 
 %% Calc Delta V3
 [deltaV3_min, idx_min] = min(deltaV3_iter);
 deltaV2_min = deltaV2_iter(idx_min);
 ToF45_day = ToF45_day_idx(idx_min);
+% v_infea2_min = v_infea2(idx_min,:);
+% v_infea2_mag_min = v_infea2_mag(idx_min);
+% v_hyperea2_min = v_hyperea2(idx_min);
 
 ToF45 = getTU(ToF45_day,'d'); % [TU]
 
@@ -305,7 +318,15 @@ fontsize(16,'point')
 hold off
 
 
+%% Build animation vectors
+% T_animation = [T_j2e';T_e2e(2:end)'];
+% rx_animation = [r_satTraj12(:,1);r_satTraj34(2:end,1);r_satTraj45(:,1)];
+% ry_animation = [r_satTraj12(:,1);r_satTraj34(2:end,2);r_satTraj45(:,2)];
+% rz_animation = [r_satTraj12(:,1);r_satTraj34(2:end,3);r_satTraj45(:,3)];
+% animation_return = [T_animation, rx_animation, ry_animation, rz_animation];
 
+
+%% Output
 deltaV1
 deltaV2_min
 deltaV3_min
